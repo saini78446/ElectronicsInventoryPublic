@@ -1,96 +1,126 @@
-# Electronics Inventory — ASP.NET Core (Razor Pages) version
+# Electronics Inventory — ASP.NET Core (Razor Pages)
 
-This is a straight port of your PHP/SQLite app to ASP.NET Core 10 + Razor Pages + EF Core.
-**It reads the exact same SQLite database file and folder layout** the PHP app used, so your
-existing hundreds of rows and photos carry over with zero data migration.
+A self-hosted inventory tracker for electronics, built with ASP.NET Core 10, Razor Pages,
+and EF Core over SQLite. Originally ported from a PHP/SQLite app — it reads the same
+database and upload folder layout, so existing data carries over without migration.
 
-## What matches the old app, on purpose
+## Features
 
-- Table name `items`, column names (`current_price`, `original_price`, `image_path`,
-  `created_at`, `updated_at`, etc.) are mapped 1:1 in `Data/InventoryContext.cs` via
-  `HasColumnName(...)`. EF Core will **not** try to create or alter this table.
-- `created_at` / `updated_at` stay as plain TEXT strings (`yyyy-MM-dd HH:mm:ss`), same as
-  PHP's `datetime('now')` — no datetime type conversion that could choke on old rows.
-- Images still live under `wwwroot/uploads/`, referenced from the DB as `uploads/xxx.jpg`,
-  same relative-path convention as before.
-- Same camera-capture flow: `getUserMedia` → canvas → base64 JPEG → posted to the server →
-  decoded and saved as a file. Mandatory on Add, optional retake on Edit.
+- Item list with search and quick stats (total items, quantity, value)
+- Add items with mandatory camera capture (photo required on create)
+- Edit items with optional photo retake, extra images, attachments, tags, and
+  custom key/value attributes
+- Master data management (Categories, Sellers, Conditions, Locations, Tags) with
+  no cascading deletes — a row in use is protected until it's reassigned
+- Optional AI-assisted lookup via Groq and SerpApi to help fill in item details faster
 
-## 1. Copy over your existing data
+## Requirements
 
-From your PHP project folder, copy these into this project:
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- SQLite (bundled via EF Core's SQLite provider — no separate install needed)
+
+## Setup
+
+### 1. Clone and configure
 
 ```bash
-# from the PHP app root, into this .NET project root
-cp -r electronics_app/data/electronics.db  ElectronicsInventory/data/electronics.db
-cp -r electronics_app/uploads/*            ElectronicsInventory/wwwroot/uploads/
+git clone <this-repo-url>
+cd ElectronicsInventory
+cp appsettings.json appsettings.Development.json
 ```
 
-That's it — no SQL migration scripts, no re-import. The `.db` file format is identical;
-EF Core is just a different client reading/writing the same file.
+Edit `appsettings.Development.json` (or `appsettings.json` directly, if not committing
+per-environment overrides) and fill in:
 
-## 2. Restore & run
+```json
+{
+  "Groq": {
+    "ApiKey": "your-groq-api-key"
+  },
+  "SerpApi": {
+    "ApiKey": "your-serpapi-key"
+  },
+  "Auth": {
+    "AdminPassword": "pick-a-real-password"
+  }
+}
+```
+
+- **Groq** — create a free API key at [console.groq.com/keys](https://console.groq.com/keys).
+  Used for AI-assisted item lookups.
+- **SerpApi** — create a free API key at [serpapi.com/manage-api-key](https://serpapi.com/manage-api-key).
+  Used for web search backing those lookups.
+- **Auth:AdminPassword** — the app ships with a placeholder password. Change this before
+  running anywhere other than your own machine — do not deploy with the default value.
+
+> **Never commit real API keys or passwords.** `appsettings.json` in this repo only contains
+> empty placeholders. Keep your real `appsettings.Development.json` (or use user secrets /
+> environment variables in production) out of version control — see `.gitignore` below.
+
+### 2. Bring your existing data (optional)
+
+If you're migrating from the original PHP/SQLite app, copy your existing files in before
+first run:
 
 ```bash
-cd ElectronicsInventory
+cp -r /path/to/php-app/data/electronics.db  ElectronicsInventory/data/electronics.db
+cp -r /path/to/php-app/uploads/*            ElectronicsInventory/wwwroot/uploads/
+```
+
+The table names, column names, and file layout are mapped 1:1 in `Data/InventoryContext.cs`,
+so no SQL migration or re-import is needed — EF Core just reads/writes the existing `.db` file
+as-is.
+
+Starting fresh instead? Skip this step; the app will create the schema on first run.
+
+### 3. Run
+
+```bash
 dotnet restore
 dotnet run
 ```
 
-Then open the URL it prints (typically `https://localhost:5001` or similar).
+Open the URL printed in the console (typically `https://localhost:5001`).
 
-> Camera access requires HTTPS or `localhost`. `dotnet run` serves HTTPS by default in dev.
-> If testing from a phone on your LAN, you'll need a trusted cert or to tunnel via something
-> like `ngrok`/`dotnet dev-certs` trust setup — plain HTTP from a phone will block the camera.
-
-## 3. Verify your data loaded
-
-Once running, the home page (`/`) should immediately show your existing items, stats
-(total items / qty / value), and thumbnails from `wwwroot/uploads/`.
-
-If the list is empty:
-- Check `appsettings.json` → `ConnectionStrings:DefaultConnection` points at the right
-  `.db` path (relative to the project's working directory when run).
-- Confirm `data/electronics.db` actually has rows: any SQLite browser, or
-  `sqlite3 data/electronics.db "SELECT COUNT(*) FROM items;"` if you have the sqlite3 CLI.
+> Camera capture requires HTTPS or `localhost`. `dotnet run` serves HTTPS by default in dev.
+> To test from a phone on your LAN, you'll need a trusted certificate (see
+> `dotnet dev-certs https --trust`) or a tunnel like `ngrok` — plain HTTP from another device
+> will block camera access in most browsers.
 
 ## Project layout
 
 ```
 ElectronicsInventory/
-├── Program.cs                  # startup, DI, EF Core wiring
-├── appsettings.json             # connection string (points at data/electronics.db)
-├── Models/Item.cs                # POCO — mirrors existing table exactly
-├── Data/InventoryContext.cs      # EF Core mapping to existing column names
+├── Program.cs                    # startup, DI, EF Core wiring
+├── appsettings.json               # config template (placeholders only — see Setup)
+├── Models/                        # Item, Category, Seller, Condition, Location, Tag, ...
+├── Data/InventoryContext.cs       # EF Core mapping to existing column names
 ├── Pages/
-│   ├── Index.cshtml(.cs)         # list, search, stats
-│   ├── Add.cshtml(.cs)           # create + mandatory camera capture
-│   ├── Edit.cshtml(.cs)          # update + optional retake
-│   ├── Delete.cshtml(.cs)        # POST-only delete handler
+│   ├── Index.cshtml(.cs)          # list, search, stats
+│   ├── Add.cshtml(.cs)            # create + mandatory camera capture
+│   ├── Edit.cshtml(.cs)           # update + optional retake, tags, attachments
+│   ├── Manage.cshtml(.cs)         # master data: categories, sellers, conditions, etc.
+│   ├── Delete.cshtml(.cs)         # POST-only delete handler
 │   └── Shared/_Layout.cshtml
 ├── wwwroot/
 │   ├── css/site.css
-│   └── uploads/                  # <- copy your existing photos here
-└── data/                         # <- copy your existing electronics.db here
+│   └── uploads/                   # item photos live here
+└── data/                          # electronics.db lives here
 ```
 
-## Notes / things worth knowing
+## Notes
 
-- **No EF migrations are used.** Since the table already exists with a working schema,
-  adding EF Core migrations would be redundant and risks EF trying to "helpfully" alter
-  columns. The `DbContext` just maps onto what's already there.
-- If you ever *do* want migrations going forward (e.g. adding a new column later), run
-  `dotnet ef migrations add InitialBaseline --context InventoryContext` once you've
-  installed the `dotnet-ef` tool, then edit the generated migration to be a no-op for existing
-  columns before applying — but for now, none of that is needed.
-- Search on the list page does a `LIKE %term%` on `name`, same as the PHP version.
-- Validation, mandatory-photo-on-add, optional-retake-on-edit, and image cleanup on
-  delete/replace all behave the same as the PHP version.
+- **No EF migrations by default.** The `DbContext` maps onto the existing schema as-is.
+  If you add new columns later, run
+  `dotnet ef migrations add <Name> --context InventoryContext` (requires the `dotnet-ef`
+  tool), then review the generated migration before applying it.
+- `created_at` / `updated_at` are stored as plain `TEXT` (`yyyy-MM-dd HH:mm:ss`), matching
+  the original PHP app's convention — no datetime type conversion to worry about.
+- Search does a `LIKE %term%` match on item name.
+- Master-data deletes (categories, sellers, conditions, locations, tags) are blocked
+  server-side while a row is still referenced by any item — reassign first, then delete.
 
-## Note on this build
+## Contributing / Issues
 
-I wasn't able to compile this with the actual .NET SDK in the sandbox I built it in (no
-internet access to the NuGet/Microsoft feeds), so this hasn't been run through `dotnet build`
-or `dotnet run`. I reviewed every file by hand for correctness, and the schema mapping was
-checked against a real SQLite DB seeded with your exact table structure. Please run
-`dotnet build` first thing and let me know if anything doesn't compile — happy to fix fast.
+This project hasn't been run through a full CI build yet. If you hit a compile error or
+runtime issue, please open an issue with the stack trace and your `.NET` SDK version.
