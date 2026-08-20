@@ -1,0 +1,334 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Inventory";
+}
+
+<div class="page-header">
+    <div class="page-header-left">
+        <h1>Your Inventory</h1>
+        <p class="page-subtitle">Browse, search, and manage all your electronic items in one place.</p>
+    </div>
+    <div class="btn-group">
+        <a href="/?handler=Export&Q=@Model.Q&CategoryId=@Model.CategoryId&Tag=@Model.Tag&Sort=@Model.Sort"
+           class="btn btn-light">⬇ Export CSV</a>
+        <a href="/Add" class="btn btn-primary">+ Add Item</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.FlashMessage))
+{
+    <div class="flash @Model.FlashType">@Model.FlashMessage</div>
+}
+
+<div class="stats">
+    <div class="stat-card">
+        <span class="stat-label">Total Items</span>
+        <span class="stat-value">@Model.TotalItems</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Total Quantity</span>
+        <span class="stat-value">@Model.TotalQty</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Inventory Value</span>
+        <span class="stat-value">₹@Model.TotalValue.ToString("N2")</span>
+    </div>
+</div>
+
+<div class="filter-panel">
+    <span class="filter-label">Search &amp; Filter</span>
+    <form method="get" class="search-bar">
+        <input type="hidden" name="PageNo" value="1" />
+        <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" name="Q" placeholder="Search by name..." value="@Model.Q" />
+        </div>
+        <select name="CategoryId" onchange="this.form.submit()">
+            <option value="">All Categories</option>
+            @foreach (var cat in Model.Categories.Where(c => c.ParentCategoryId == null))
+            {
+                <option value="@cat.Id" selected="@(Model.CategoryId == cat.Id)">@cat.Name (@cat.TotalRecords)</option>
+                @foreach (var child in cat.Children)
+                {
+                    <option value="@child.Id" selected="@(Model.CategoryId == child.Id)">&nbsp;&nbsp;&nbsp;&nbsp;↳ @child.Name
+                        (@child.TotalRecords)</option>
+                    }
+                }
+            </select>
+            <input type="text" name="Tag" placeholder="Filter by tag..." value="@Model.Tag" />
+            <select name="Sort" onchange="this.form.submit()">
+                <option value="" selected="@(string.IsNullOrEmpty(Model.Sort))">Newest first</option>
+                <option value="name_asc" selected="@(Model.Sort == "name_asc")">Name (A–Z)</option>
+                <option value="name_desc" selected="@(Model.Sort == "name_desc")">Name (Z–A)</option>
+                <option value="price_desc" selected="@(Model.Sort == "price_desc")">Price (high–low)</option>
+                <option value="price_asc" selected="@(Model.Sort == "price_asc")">Price (low–high)</option>
+                <option value="qty_desc" selected="@(Model.Sort == "qty_desc")">Quantity (high–low)</option>
+                <option value="qty_asc" selected="@(Model.Sort == "qty_asc")">Quantity (low–high)</option>
+                <option value="created_desc" selected="@(Model.Sort == "created_desc")">Date added (newest)</option>
+                <option value="created_asc" selected="@(Model.Sort == "created_asc")">Date added (oldest)</option>
+                <option value="updated_desc" selected="@(Model.Sort == "updated_desc")">Recently updated</option>
+            </select>
+            <select name="PageSize" onchange="this.form.submit()">
+                <option value="10" selected="@(Model.PageSize == 10)">10 / page</option>
+                <option value="25" selected="@(Model.PageSize == 25)">25 / page</option>
+                <option value="50" selected="@(Model.PageSize == 50)">50 / page</option>
+                <option value="100" selected="@(Model.PageSize == 100)">100 / page</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Search</button>
+            @if (!string.IsNullOrEmpty(Model.Q) || Model.CategoryId.HasValue || !string.IsNullOrEmpty(Model.Tag) ||
+            !string.IsNullOrEmpty(Model.Sort) || Model.PageSize != 50)
+            {
+                <a href="/" class="btn btn-light">Clear</a>
+            }
+        </form>
+    </div>
+
+    @* @{
+    string PageUrl(int p) =>
+        $"/?Q={Uri.EscapeDataString(Model.Q ?? "")}&CategoryId={Model.CategoryId}&Tag={Uri.EscapeDataString(Model.Tag ??
+"")}&Sort={Model.Sort}&PageSize={Model.PageSize}&PageNo={p}";
+} *@
+
+    @{
+        string PageUrl(int p)
+        {
+            var qs = new List<string>();
+            if (!string.IsNullOrEmpty(Model.Q)) qs.Add($"Q={Uri.EscapeDataString(Model.Q)}");
+            if (Model.CategoryId.HasValue) qs.Add($"CategoryId={Model.CategoryId}");
+            if (!string.IsNullOrEmpty(Model.Tag)) qs.Add($"Tag={Uri.EscapeDataString(Model.Tag)}");
+            if (!string.IsNullOrEmpty(Model.Sort)) qs.Add($"Sort={Model.Sort}");
+            qs.Add($"PageSize={Model.PageSize}");
+            qs.Add($"PageNo={p}");
+            return "/?" + string.Join("&", qs);
+        }
+    }
+
+    @if (!Model.Items.Any())
+    {
+        <div class="empty">
+            <p>No items found. <a href="/Add">Add your first electronic item</a> to get started.</p>
+        </div>
+    }
+    else
+    {
+        <div class="pager pager-top">
+            <span class="pager-info">
+                Showing @(((Model.PageNo - 1) * Model.PageSize) + 1)–@(Math.Min(Model.PageNo * Model.PageSize,
+                        Model.TotalItems)) of @Model.TotalItems
+            </span>
+        </div>
+
+        <div class="grid">
+            @foreach (var item in Model.Items)
+            {
+                var diff = item.CurrentPrice - item.OriginalPrice;
+                var diffClass = diff < 0 ? "down" : (diff > 0 ? "up" : "flat");
+                var diffSymbol = diff == 0 ? "—" : (diff < 0 ? "▼" : "▲");
+                var catName = item.Category?.Name ?? "Uncategorized";
+                var tagNames = item.ItemTags.Select(it => it.Tag!.Name).ToList();
+
+                <div class="card">
+                    <div class="card-img" onclick="openModal('modal-@item.Id')">
+                        <img src="~/@item.ImagePath" alt="@item.Name" loading="lazy" />
+                        @if (item.Images.Any())
+                        {
+                            <span class="img-count-badge">+@item.Images.Count photos</span>
+                        }
+                    </div>
+                    <div class="card-body">
+                        <h4 class="card-category">@catName</h4>
+                        <h3 onclick="openModal('modal-@item.Id')">@item.Name</h3>
+
+                        @if (tagNames.Any())
+                        {
+                            <div class="tag-list">
+                                @foreach (var t in tagNames)
+                                {
+                                    <span class="tag-pill">@t</span>
+                                }
+                            </div>
+                        }
+
+                        @if (item.Condition != null)
+                        {
+                            <div class="meta-line">Condition: <strong>@item.Condition.Name</strong></div>
+                        }
+                        @if (item.Location != null)
+                        {
+                            <div class="meta-line">Location: <strong>@item.Location.Name</strong></div>
+                        }
+
+                        <div class="price-row">
+                            <span class="current">₹@item.CurrentPrice.ToString("N2")</span>
+                            <span class="original">₹@item.OriginalPrice.ToString("N2")</span>
+                            <span class="diff @diffClass">
+                                @(diff == 0 ? "—" : $"{diffSymbol} ₹{Math.Abs(diff):N2}")
+                            </span>
+                        </div>
+                        <div class="qty">Qty: <strong>@item.Quantity</strong></div>
+                        @if (item.Seller != null)
+                        {
+                            <div class="seller-line">Seller: <strong>@item.Seller.Name</strong></div>
+                        }
+                        <div class="card-actions">
+                            <button type="button" class="btn btn-small btn-primary"
+                                    onclick="openModal('modal-@item.Id')">View</button>
+                            <a href="/Edit/@item.Id" class="btn btn-small">Edit</a>
+                            <form method="post" asp-page="/Delete" asp-route-id="@item.Id"
+                                  onsubmit="return confirm('Delete this item?');">
+                                <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="modal-@item.Id" class="modal-overlay" onclick="closeModalOnBackdrop(event, 'modal-@item.Id')">
+                    <div class="modal-box" onclick="event.stopPropagation()">
+                        <button type="button" class="modal-close" onclick="closeModal('modal-@item.Id')"
+                                aria-label="Close">&times;</button>
+
+                        <img src="~/@item.ImagePath" alt="@item.Name" class="modal-hero-img" />
+
+                        @if (item.Images.Any())
+                        {
+                            <div class="modal-thumbs">
+                                @foreach (var img in item.Images.OrderBy(i => i.SortOrder))
+                                {
+                                    <img src="~/@img.ImagePath" alt="Extra photo" />
+                                }
+                            </div>
+                        }
+
+                        <h3>@item.Name</h3>
+                        <p class="modal-category">@catName</p>
+
+                        @if (tagNames.Any())
+                        {
+                            <div class="tag-list">
+                                @foreach (var t in tagNames)
+                                {
+                                    <span class="tag-pill">@t</span>
+                                }
+                            </div>
+                        }
+
+                        <div class="modal-prices">
+                            <span>Current: <strong>₹@item.CurrentPrice.ToString("N2")</strong></span>
+                            <span>Original: <strong>₹@item.OriginalPrice.ToString("N2")</strong></span>
+                            <span>Qty: <strong>@item.Quantity</strong></span>
+                        </div>
+
+                        @if (item.Condition != null || item.Location != null)
+                        {
+                            <div class="modal-seller">
+                                @if (item.Condition != null)
+                                {
+                                    <span>Condition: <strong>@item.Condition.Name</strong></span>
+                                }
+                                @if (item.Condition != null && item.Location != null)
+                                {
+                                    <span> &nbsp;·&nbsp; </span>
+                                }
+                                @if (item.Location != null)
+                                {
+                                    <span>Location: <strong>@item.Location.Name</strong></span>
+                                }
+                            </div>
+                        }
+
+                        @if (item.Seller != null)
+                        {
+                            <p class="modal-seller">
+                                Seller: <strong>@item.Seller.Name</strong>
+                                @if (!string.IsNullOrWhiteSpace(item.Seller.ContactInfo))
+                                {
+                                    <span> · @item.Seller.ContactInfo</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(item.Seller.Link))
+                                {
+                                    <span> · <a href="@item.Seller.Link"
+                                                    target="_blank">View link</a></span>
+                                    }
+                                </p>
+                            }
+
+                            @if (item.Attributes.Any())
+                            {
+                                <table class="attr-table">
+                                    @foreach (var attr in item.Attributes.OrderBy(a => a.SortOrder))
+                                    {
+                                        <tr>
+                                            <td>@attr.Key</td>
+                                            <td>@attr.Value</td>
+                                        </tr>
+                                    }
+                                </table>
+                            }
+
+                            @if (item.Attachments.Any())
+                            {
+                                <div class="modal-attachments">
+                                    <p class="modal-attachments-label">Attachments</p>
+                                    @foreach (var att in item.Attachments)
+                                    {
+                                        <a href="~/@att.FilePath" target="_blank">📎 @att.FileName</a>
+                                    }
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(item.Notes))
+                            {
+                                <div class="modal-notes">@item.Notes</div>
+                            }
+                            else
+                            {
+                                <p class="modal-notes-empty">No notes added.</p>
+                            }
+
+                            <p class="modal-meta">Added @item.CreatedAt.ToString() &nbsp;·&nbsp; Updated @item.UpdatedAt.ToString()</p>
+
+                            <a href="/Edit/@item.Id" class="btn btn-primary btn-block">Edit Item</a>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="pager pager-bottom">
+                <a class="btn btn-small @(Model.PageNo <= 1 ? "btn-disabled" : "")" href="@(Model.PageNo <= 1 ? "#" : PageUrl(1))">«
+                    First</a>
+                    <a class="btn btn-small @(Model.PageNo <= 1 ? "btn-disabled" : "")"
+                       href="@(Model.PageNo <= 1 ? "#" : PageUrl(Model.PageNo - 1))">‹ Prev</a>
+                    <span class="pager-info">Page @Model.PageNo of @Model.TotalPages</span>
+                    <a class="btn btn-small @(Model.PageNo >= Model.TotalPages ? "btn-disabled" : "")"
+                       href="@(Model.PageNo >= Model.TotalPages ? "#" : PageUrl(Model.PageNo + 1))">Next ›</a>
+                    <a class="btn btn-small @(Model.PageNo >= Model.TotalPages ? "btn-disabled" : "")"
+                       href="@(Model.PageNo >= Model.TotalPages ? "#" : PageUrl(Model.TotalPages))">Last »</a>
+                </div>
+            }
+
+            @section Scripts {
+                <script>
+                    function openModal(id) {
+                        document.getElementById(id).style.display = 'flex';
+                        document.body.style.overflow = 'hidden';
+                    }
+                    function closeModal(id) {
+                        document.getElementById(id).style.display = 'none';
+                        document.body.style.overflow = '';
+                    }
+                    function closeModalOnBackdrop(e, id) {
+                        if (e.target.id === id) closeModal(id);
+                    }
+                    document.addEventListener('keydown', (e) => {
+                        if (e.key === 'Escape') {
+                            document.querySelectorAll('.modal-overlay').forEach(m => {
+                                if (m.style.display === 'flex') {
+                                    m.style.display = 'none';
+                                    document.body.style.overflow = '';
+                                }
+                            });
+                        }
+                    });
+                </script>
+            }

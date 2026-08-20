@@ -1,0 +1,14 @@
+@page
+@model DeleteModel
+@{
+    ViewData["Title"] = "Deleting...";
+    ViewData["WrapClass"] = "narrow";
+}
+
+<div class="redirect-page">
+    <div class="redirect-spinner"></div>
+    <h1>Item deleted</h1>
+    <p class="page-subtitle">Redirecting you back to the inventory...</p>
+</div>
+
+<script>window.location.href = '/';</script>

@@ -1,0 +1,120 @@
+@using Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    // Current request path, used to highlight the active nav item.
+    // Add new top-level pages to mainNav, and new "Manage" sub-pages to manageNav —
+    // both lists are the only thing you need to touch when a new page shows up.
+    string currentPath = Context.Request.Path.Value ?? "/";
+
+    var mainNav = new List<(string Href, string Label, string Icon)>
+    {
+        ("/", "Inventory", "📦"),
+        ("/Add", "Add Item", "➕"),
+    };
+
+    var manageNav = new List<(string Href, string Label, string Icon)>
+    {
+        ("/Manage?tab=categories", "Categories", "🗂️"),
+        ("/Manage?tab=sellers", "Sellers", "🏬"),
+        ("/Manage?tab=conditions", "Conditions", "✅"),
+        ("/Manage?tab=locations", "Locations", "📍"),
+        ("/Manage?tab=tags", "Tags", "🏷️"),
+    };
+
+    bool IsActive(string href) =>
+        currentPath.Equals(href.Split('?')[0], StringComparison.OrdinalIgnoreCase);
+
+    bool manageActive = currentPath.StartsWith("/Manage", StringComparison.OrdinalIgnoreCase);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Electronics Inventory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <nav class="topbar">
+        <div class="topbar-inner">
+            <a href="/" class="brand">
+                <span class="brand-icon">📦</span>
+                <span class="brand-text">Electronics <span>Inventory</span></span>
+            </a>
+
+            <button type="button" class="nav-toggle" id="navToggle" aria-label="Toggle menu">☰</button>
+
+            <div class="nav-links" id="navLinks">
+                @foreach (var item in mainNav)
+                {
+                    <a href="@item.Href" class="nav-link @(IsActive(item.Href) ? "active" : "")">
+                        <span>@item.Icon</span> @item.Label
+                    </a>
+                }
+
+                <div class="nav-dropdown @(manageActive ? "active" : "")" id="manageDropdown">
+                    <button type="button" class="nav-dropdown-toggle" id="manageToggle">
+                        <span>⚙️</span> Manage
+                        <span class="nav-dropdown-caret">▾</span>
+                    </button>
+                    <div class="nav-dropdown-menu">
+                        @foreach (var item in manageNav)
+                        {
+                            var itemTab = item.Href.Contains("tab=") ? item.Href.Split("tab=")[1] : "";
+                            var isTabActive = currentPath.Equals("/Manage", StringComparison.OrdinalIgnoreCase)
+                                && string.Equals(Context.Request.Query["tab"], itemTab, StringComparison.OrdinalIgnoreCase);
+                            <a href="@item.Href" class="@(isTabActive ? "active" : "")">
+                                <span>@item.Icon</span> @item.Label
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="topbar-actions">
+                @if (User.Identity != null && User.Identity.IsAuthenticated)
+                {
+                    <span class="auth-name">@User.Identity.Name</span>
+                    <a href="/Logout" class="btn btn-small btn-light">Logout</a>
+                }
+                else
+                {
+                    <a href="/Login" class="btn btn-small btn-primary">Sign In</a>
+                }
+            </div>
+        </div>
+    </nav>
+
+    <main class="wrap @ViewData["WrapClass"]">
+        @RenderBody()
+    </main>
+
+    <footer class="site-footer">
+        Electronics Inventory &mdash; track, organize, and manage your stock
+    </footer>
+
+    <script>
+        // Mobile hamburger toggle
+        document.getElementById('navToggle')?.addEventListener('click', () => {
+            document.getElementById('navLinks')?.classList.toggle('open');
+        });
+
+        // "Manage" dropdown: click to open, click outside to close
+        const manageDropdown = document.getElementById('manageDropdown');
+        const manageToggle = document.getElementById('manageToggle');
+        manageToggle?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            manageDropdown.classList.toggle('open');
+        });
+        document.addEventListener('click', (e) => {
+            if (manageDropdown && !manageDropdown.contains(e.target)) {
+                manageDropdown.classList.remove('open');
+            }
+        });
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

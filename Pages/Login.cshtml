@@ -1,0 +1,46 @@
+﻿@page
+@model LoginModel
+@{
+    ViewData["Title"] = "Login";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In - Electronics Inventory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <div class="login-hero">
+                <div class="login-icon">📦</div>
+                <h1 class="login-title">Welcome back</h1>
+                <p class="login-subtitle">Sign in to manage your electronics inventory</p>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.Error))
+            {
+                <div class="flash error">@Model.Error</div>
+            }
+
+            <form method="post" class="form-card login-form">
+                <label>
+                    Password
+                    <input asp-for="Password" type="password" placeholder="Enter your password" autofocus required />
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+            </form>
+
+            <p style="text-align:center; margin-top:20px; font-size:0.82rem; color:var(--text-muted);">
+                <a href="/" style="color:var(--primary); font-weight:600; text-decoration:none;">← Back to inventory</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,394 @@
+@page
+@model ManageModel
+@{
+    ViewData["Title"] = "Manage Master Data";
+    ViewData["WrapClass"] = "form-page";
+    var tab = string.IsNullOrWhiteSpace(Model.Tab) ? "categories" : Model.Tab;
+}
+
+<div class="compact-header">
+    <div class="compact-header-row">
+        <div>
+            <h1>Manage Master Data</h1>
+            <p class="page-subtitle">Categories, sellers, conditions, locations and tags — all in one place.</p>
+        </div>
+        <a href="/" class="btn btn-light btn-small">← Back</a>
+    </div>
+</div>
+
+@if (TempData["FlashMessage"] is string flashMsg)
+{
+    <div class="flash @(TempData["FlashType"] as string ?? "success")">@flashMsg</div>
+}
+
+<nav class="tabs-bar">
+    <a href="?tab=categories" class="tab-link @(tab == "categories" ? "active" : "")">
+        Categories <span class="tab-count">@Model.Categories.Count</span>
+    </a>
+    <a href="?tab=sellers" class="tab-link @(tab == "sellers" ? "active" : "")">
+        Sellers <span class="tab-count">@Model.Sellers.Count</span>
+    </a>
+    <a href="?tab=conditions" class="tab-link @(tab == "conditions" ? "active" : "")">
+        Conditions <span class="tab-count">@Model.Conditions.Count</span>
+    </a>
+    <a href="?tab=locations" class="tab-link @(tab == "locations" ? "active" : "")">
+        Locations <span class="tab-count">@Model.Locations.Count</span>
+    </a>
+    <a href="?tab=tags" class="tab-link @(tab == "tags" ? "active" : "")">
+        Tags <span class="tab-count">@Model.Tags.Count</span>
+    </a>
+</nav>
+
+@if (tab == "categories")
+{
+    <div class="manage-layout">
+        <div class="form-panel add-panel">
+            <div class="form-panel-head"><h2>Add Category</h2></div>
+            <form method="post" asp-page-handler="AddCategory" class="form-panel-body">
+                <label>
+                    Name *
+                    <input asp-for="NewCategory.Name" type="text" required placeholder="e.g. Cables" />
+                </label>
+                <label>
+                    Parent category
+                    <select asp-for="NewCategory.ParentCategoryId">
+                        <option value="">-- None (top-level) --</option>
+                        @foreach (var top in Model.Categories.Where(c => c.ParentCategoryId == null))
+                        {
+                            <option value="@top.Id">@top.Name</option>
+                        }
+                    </select>
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">Add Category</button>
+            </form>
+        </div>
+
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Parent</th>
+                        <th>Items</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var cat in Model.Categories)
+                    {
+                        var count = Model.CategoryItemCounts.GetValueOrDefault(cat.Id, 0);
+                        var hasChildren = cat.Children.Any();
+                        var canDelete = count == 0 && !hasChildren;
+                        <tr>
+                            <form method="post" asp-page-handler="EditCategory" class="row-form">
+                                <input type="hidden" name="id" value="@cat.Id" />
+                                <td colspan="2">
+                                    <div class="row-form-fields">
+                                        <div style="display:flex; gap:6px;">
+                                            @if (cat.ParentCategoryId != null)
+                                            {
+                                                <span class="tree-indent">↳</span>
+                                            }
+                                            <input type="text" name="name" value="@cat.Name" required style="flex:1;" />
+                                        </div>
+                                        <select name="parentCategoryId" style="width:100%;">
+                                            <option value="">-- None (top-level) --</option>
+                                            @foreach (var top in Model.Categories.Where(c => c.ParentCategoryId == null && c.Id != cat.Id))
+                                            {
+                                                <option value="@top.Id" selected="@(cat.ParentCategoryId == top.Id)">@top.Name</option>
+                                            }
+                                        </select>
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (count > 0)
+                                    {
+                                        <span class="in-use-badge">@count item@(count == 1 ? "" : "s")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-subtle" style="color:var(--text-subtle); font-size:0.8rem;">unused</span>
+                                    }
+                                </td>
+                                <td class="col-actions">
+                                    <button type="submit" class="btn btn-light btn-small">Save</button>
+                                </td>
+                            </form>
+                            <td class="col-actions" style="padding-left:0;">
+                                <form method="post" asp-page-handler="DeleteCategory" onsubmit="return confirm('Delete category &quot;@cat.Name&quot;?');">
+                                    <input type="hidden" name="id" value="@cat.Id" />
+                                    <button type="submit" class="btn btn-danger btn-small" @(canDelete ? "" : "disabled") title="@(canDelete ? "Delete category" : hasChildren ? "Has sub-categories — remove them first" : "In use by items — reassign them first")">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Categories.Any())
+                    {
+                        <tr><td colspan="4" class="empty">No categories yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else if (tab == "sellers")
+{
+    <div class="manage-layout">
+        <div class="form-panel add-panel">
+            <div class="form-panel-head"><h2>Add Seller</h2></div>
+            <form method="post" asp-page-handler="AddSeller" class="form-panel-body">
+                <label>
+                    Name *
+                    <input asp-for="NewSeller.Name" type="text" required />
+                </label>
+                <label>
+                    Contact
+                    <input asp-for="NewSeller.ContactInfo" type="text" placeholder="phone / email" />
+                </label>
+                <label>
+                    Link
+                    <input asp-for="NewSeller.Link" type="url" placeholder="https://..." />
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">Add Seller</button>
+            </form>
+        </div>
+
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>Link</th>
+                        <th>Items</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in Model.Sellers)
+                    {
+                        var count = Model.SellerItemCounts.GetValueOrDefault(s.Id, 0);
+                        <tr>
+                            <form method="post" asp-page-handler="EditSeller" class="row-form">
+                                <input type="hidden" name="id" value="@s.Id" />
+                                <td><input type="text" name="name" value="@s.Name" required /></td>
+                                <td><input type="text" name="contactInfo" value="@s.ContactInfo" placeholder="phone / email" /></td>
+                                <td><input type="url" name="link" value="@s.Link" placeholder="https://..." /></td>
+                                <td>
+                                    @if (count > 0)
+                                    {
+                                        <span class="in-use-badge">@count item@(count == 1 ? "" : "s")</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color:var(--text-subtle); font-size:0.8rem;">unused</span>
+                                    }
+                                </td>
+                                <td class="col-actions">
+                                    <button type="submit" class="btn btn-light btn-small">Save</button>
+                                </td>
+                            </form>
+                            <td class="col-actions" style="padding-left:0;">
+                                <form method="post" asp-page-handler="DeleteSeller" onsubmit="return confirm('Delete seller &quot;@s.Name&quot;?');">
+                                    <input type="hidden" name="id" value="@s.Id" />
+                                    <button type="submit" class="btn btn-danger btn-small" @(count == 0 ? "" : "disabled") title="@(count == 0 ? "Delete seller" : "In use by items — reassign them first")">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Sellers.Any())
+                    {
+                        <tr><td colspan="5" class="empty">No sellers yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else if (tab == "conditions")
+{
+    <div class="manage-layout">
+        <div class="form-panel add-panel">
+            <div class="form-panel-head"><h2>Add Condition</h2></div>
+            <form method="post" asp-page-handler="AddCondition" class="form-panel-body">
+                <label>
+                    Name *
+                    <input asp-for="NewCondition.Name" type="text" required placeholder="e.g. Refurbished" />
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">Add Condition</button>
+            </form>
+        </div>
+
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Items</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in Model.Conditions)
+                    {
+                        var count = Model.ConditionItemCounts.GetValueOrDefault(c.Id, 0);
+                        <tr>
+                            <form method="post" asp-page-handler="EditCondition" class="row-form">
+                                <input type="hidden" name="id" value="@c.Id" />
+                                <td><input type="text" name="name" value="@c.Name" required /></td>
+                                <td>
+                                    @if (count > 0)
+                                    {
+                                        <span class="in-use-badge">@count item@(count == 1 ? "" : "s")</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color:var(--text-subtle); font-size:0.8rem;">unused</span>
+                                    }
+                                </td>
+                                <td class="col-actions">
+                                    <button type="submit" class="btn btn-light btn-small">Save</button>
+                                </td>
+                            </form>
+                            <td class="col-actions" style="padding-left:0;">
+                                <form method="post" asp-page-handler="DeleteCondition" onsubmit="return confirm('Delete condition &quot;@c.Name&quot;?');">
+                                    <input type="hidden" name="id" value="@c.Id" />
+                                    <button type="submit" class="btn btn-danger btn-small" @(count == 0 ? "" : "disabled") title="@(count == 0 ? "Delete condition" : "In use by items — reassign them first")">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Conditions.Any())
+                    {
+                        <tr><td colspan="3" class="empty">No conditions yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else if (tab == "locations")
+{
+    <div class="manage-layout">
+        <div class="form-panel add-panel">
+            <div class="form-panel-head"><h2>Add Location</h2></div>
+            <form method="post" asp-page-handler="AddLocation" class="form-panel-body">
+                <label>
+                    Name *
+                    <input asp-for="NewLocation.Name" type="text" required placeholder="e.g. Shelf B2" />
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">Add Location</button>
+            </form>
+        </div>
+
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Items</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in Model.Locations)
+                    {
+                        var count = Model.LocationItemCounts.GetValueOrDefault(l.Id, 0);
+                        <tr>
+                            <form method="post" asp-page-handler="EditLocation" class="row-form">
+                                <input type="hidden" name="id" value="@l.Id" />
+                                <td><input type="text" name="name" value="@l.Name" required /></td>
+                                <td>
+                                    @if (count > 0)
+                                    {
+                                        <span class="in-use-badge">@count item@(count == 1 ? "" : "s")</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color:var(--text-subtle); font-size:0.8rem;">unused</span>
+                                    }
+                                </td>
+                                <td class="col-actions">
+                                    <button type="submit" class="btn btn-light btn-small">Save</button>
+                                </td>
+                            </form>
+                            <td class="col-actions" style="padding-left:0;">
+                                <form method="post" asp-page-handler="DeleteLocation" onsubmit="return confirm('Delete location &quot;@l.Name&quot;?');">
+                                    <input type="hidden" name="id" value="@l.Id" />
+                                    <button type="submit" class="btn btn-danger btn-small" @(count == 0 ? "" : "disabled") title="@(count == 0 ? "Delete location" : "In use by items — reassign them first")">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Locations.Any())
+                    {
+                        <tr><td colspan="3" class="empty">No locations yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else if (tab == "tags")
+{
+    <div class="manage-layout">
+        <div class="form-panel add-panel">
+            <div class="form-panel-head"><h2>Add Tag</h2></div>
+            <form method="post" asp-page-handler="AddTag" class="form-panel-body">
+                <label>
+                    Name *
+                    <input asp-for="NewTag.Name" type="text" required placeholder="e.g. gaming" />
+                </label>
+                <p class="hint">Tags are stored lowercase and must be unique.</p>
+                <button type="submit" class="btn btn-primary btn-block">Add Tag</button>
+            </form>
+        </div>
+
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Items</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in Model.Tags)
+                    {
+                        var count = Model.TagItemCounts.GetValueOrDefault(t.Id, 0);
+                        <tr>
+                            <form method="post" asp-page-handler="EditTag" class="row-form">
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <td><input type="text" name="name" value="@t.Name" required /></td>
+                                <td>
+                                    @if (count > 0)
+                                    {
+                                        <span class="in-use-badge">@count item@(count == 1 ? "" : "s")</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color:var(--text-subtle); font-size:0.8rem;">unused</span>
+                                    }
+                                </td>
+                                <td class="col-actions">
+                                    <button type="submit" class="btn btn-light btn-small">Save</button>
+                                </td>
+                            </form>
+                            <td class="col-actions" style="padding-left:0;">
+                                <form method="post" asp-page-handler="DeleteTag" onsubmit="return confirm('Delete tag &quot;@t.Name&quot;?');">
+                                    <input type="hidden" name="id" value="@t.Id" />
+                                    <button type="submit" class="btn btn-danger btn-small" @(count == 0 ? "" : "disabled") title="@(count == 0 ? "Delete tag" : "Applied to items — remove it from those items first")">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Tags.Any())
+                    {
+                        <tr><td colspan="3" class="empty">No tags yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

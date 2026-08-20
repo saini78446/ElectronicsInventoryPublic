@@ -1,0 +1,355 @@
+@page "{id:int}"
+@model EditModel
+@{
+    ViewData["Title"] = "Edit Item";
+    ViewData["WrapClass"] = "form-page";
+    var hasSeller = Model.Input.SellerId.HasValue;
+    var hasAttrs = Model.Input.AttributeKeys?.Any() == true;
+    var hasExtra = Model.ExistingExtraImages.Any();
+    var hasAttach = Model.ExistingAttachments.Any();
+}
+
+<div class="compact-header">
+    <div class="compact-header-row">
+        <div>
+            <h1>Edit Item</h1>
+            <p class="page-subtitle">Update essentials quickly — expand sections only when needed.</p>
+        </div>
+        <a href="/" class="btn btn-light btn-small">← Back</a>
+    </div>
+</div>
+
+<div asp-validation-summary="All" class="flash error"></div>
+
+<form method="post" id="itemForm" class="item-form" enctype="multipart/form-data">
+    <input asp-for="Input.Id" type="hidden" />
+
+    <div class="form-layout">
+
+        <aside class="form-aside">
+            <div class="form-panel photo-panel">
+                <div class="form-panel-head">
+                    <h2>Photo</h2>
+                    <span class="form-panel-badge optional">Retake optional</span>
+                </div>
+                <div class="camera-section">
+                    <div id="cameraArea">
+                        <img id="preview" src="~/@Model.ExistingImagePath" alt="Current photo" />
+                        <video id="video" autoplay playsinline style="display:none;"></video>
+                        <canvas id="canvas" style="display:none;"></canvas>
+                    </div>
+                    <div class="camera-buttons">
+                        <button type="button" id="startCam" class="btn">Retake</button>
+                        <button type="button" id="captureBtn" class="btn btn-primary" disabled>Capture</button>
+                        <button type="button" id="cancelRetake" class="btn btn-light" style="display:none;">Cancel</button>
+                    </div>
+                    <p id="camError" class="cam-error"></p>
+                    <input asp-for="Input.ImageData" type="hidden" id="image_data" value="" />
+                </div>
+            </div>
+        </aside>
+
+        <div class="form-main">
+
+            <div class="form-panel">
+                <div class="form-panel-head">
+                    <h2>Essentials</h2>
+                </div>
+                <div class="form-panel-body">
+
+                    <label>
+                        Item Name *
+                        <input asp-for="Input.Name" type="text" required />
+                    </label>
+
+                    <div class="row2">
+                        <label>
+                            Category
+                            <select asp-for="Input.CategoryId">
+                                <option value="">-- None --</option>
+                                @foreach (var top in Model.Categories.Where(c => c.ParentCategoryId == null))
+                                {
+                                    <option value="@top.Id">@top.Name</option>
+                                    @foreach (var child in top.Children)
+                                    {
+                                        <option value="@child.Id">&nbsp;&nbsp;&nbsp;&nbsp;↳ @child.Name</option>
+                                    }
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            Tags
+                            <input asp-for="Input.TagsCsv" type="text" value="@Model.ExistingTagsCsv" placeholder="gaming, spare, cable" />
+                        </label>
+                    </div>
+
+                    <div class="row2">
+                        <label>
+                            Condition
+                            <select asp-for="Input.ConditionId">
+                                <option value="">-- None --</option>
+                                @foreach (var top in Model.Conditions)
+                                {
+                                    <option value="@top.Id">@top.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            Location
+                            <select asp-for="Input.LocationId">
+                                <option value="">-- None --</option>
+                                @foreach (var top in Model.Locations)
+                                {
+                                    <option value="@top.Id">@top.Name</option>
+                                }
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="row3">
+                        <label>
+                            Current Price (₹) *
+                            <input asp-for="Input.CurrentPrice" type="number" step="0.01" min="0" required />
+                        </label>
+                        <label>
+                            Original Price (₹) *
+                            <input asp-for="Input.OriginalPrice" type="number" step="0.01" min="0" required />
+                        </label>
+                        <label>
+                            Quantity *
+                            <input asp-for="Input.Quantity" type="number" step="1" min="0" required />
+                        </label>
+                    </div>
+
+                    <label>
+                        Notes
+                        <textarea asp-for="Input.Notes" rows="2" placeholder="Optional notes..."></textarea>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-accordions">
+
+                <details class="form-accordion" @(hasSeller ? "open" : "")>
+                    <summary>Seller <span class="hint" style="margin:0;font-weight:400;">optional</span></summary>
+                    <div class="form-accordion-body">
+                        <label>
+                            Existing seller
+                            <select asp-for="Input.SellerId">
+                                <option value="">-- None / new seller below --</option>
+                                @foreach (var s in Model.Sellers)
+                                {
+                                    <option value="@s.Id">@s.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <div class="row2">
+                            <label>
+                                Seller name
+                                <input asp-for="Input.NewSellerName" type="text" />
+                            </label>
+                            <label>
+                                Contact
+                                <input asp-for="Input.NewSellerContact" type="text" placeholder="phone / email" />
+                            </label>
+                        </div>
+                        <label>
+                            Link
+                            <input asp-for="Input.NewSellerLink" type="url" placeholder="https://..." />
+                        </label>
+                    </div>
+                </details>
+
+                <details class="form-accordion" @(hasAttrs ? "open" : "")>
+                    <summary>Custom Attributes</summary>
+                    <div class="form-accordion-body">
+                        <div id="attributeRows"></div>
+                        <button type="button" id="addAttributeRow" class="btn btn-light btn-small">+ Add row</button>
+                    </div>
+                </details>
+
+                <details class="form-accordion" @(hasExtra ? "open" : "")>
+                    <summary>Extra Photos @(hasExtra ? $"({Model.ExistingExtraImages.Count})" : "")</summary>
+                    <div class="form-accordion-body">
+                        @if (Model.ExistingExtraImages.Any())
+                        {
+                            <p class="hint">Check to remove existing:</p>
+                            <div class="extra-images-preview">
+                                @foreach (var img in Model.ExistingExtraImages)
+                                {
+                                    <div class="extra-image-item">
+                                        <img src="~/@img.ImagePath" alt="Extra photo" />
+                                        <label class="remove-checkbox">
+                                            <input type="checkbox" name="Input.RemoveImageIds" value="@img.Id" /> remove
+                                        </label>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        <div id="extraImagesPreview" class="extra-images-preview"></div>
+                        <div class="camera-buttons">
+                            <button type="button" id="addExtraCam" class="btn btn-small">📷 Capture</button>
+                            <label class="btn btn-light btn-small" style="display:inline-flex;cursor:pointer;">
+                                Choose files
+                                <input type="file" id="extraImageFile" accept="image/*" multiple style="display:none;" />
+                            </label>
+                        </div>
+                        <div id="extraImageInputs"></div>
+                    </div>
+                </details>
+
+                <details class="form-accordion" @(hasAttach ? "open" : "")>
+                    <summary>Attachments @(hasAttach ? $"({Model.ExistingAttachments.Count})" : "")</summary>
+                    <div class="form-accordion-body">
+                        @if (Model.ExistingAttachments.Any())
+                        {
+                            <ul class="attachment-list">
+                                @foreach (var att in Model.ExistingAttachments)
+                                {
+                                    <li>
+                                        <a href="~/@att.FilePath" target="_blank">📎 @att.FileName</a>
+                                        <label class="remove-checkbox">
+                                            <input type="checkbox" name="Input.RemoveAttachmentIds" value="@att.Id" /> remove
+                                        </label>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                        <p class="hint">Add new files:</p>
+                        <input type="file" name="Input.NewAttachments" multiple accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
+                    </div>
+                </details>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="form-footer">
+        <a href="/" class="btn btn-light">Cancel</a>
+        <button type="submit" class="btn btn-primary">Update Item</button>
+    </div>
+</form>
+
+@section Scripts {
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const preview = document.getElementById('preview');
+    const startCam = document.getElementById('startCam');
+    const captureBtn = document.getElementById('captureBtn');
+    const cancelRetake = document.getElementById('cancelRetake');
+    const imageDataInput = document.getElementById('image_data');
+    const camError = document.getElementById('camError');
+    const originalPreviewSrc = preview.src;
+    let stream = null;
+
+    startCam.addEventListener('click', async () => {
+        camError.textContent = '';
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            video.srcObject = stream;
+            video.style.display = 'block';
+            preview.style.display = 'none';
+            startCam.disabled = true;
+            captureBtn.disabled = false;
+            cancelRetake.style.display = 'inline-block';
+        } catch (err) {
+            camError.textContent = 'Camera access denied or unavailable: ' + err.message;
+        }
+    });
+
+    captureBtn.addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        imageDataInput.value = dataUrl;
+        preview.src = dataUrl;
+        preview.style.display = 'block';
+        video.style.display = 'none';
+        captureBtn.disabled = true;
+        startCam.disabled = false;
+        cancelRetake.style.display = 'none';
+        if (stream) stream.getTracks().forEach(t => t.stop());
+    });
+
+    cancelRetake.addEventListener('click', () => {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        imageDataInput.value = '';
+        preview.src = originalPreviewSrc;
+        preview.style.display = 'block';
+        video.style.display = 'none';
+        startCam.disabled = false;
+        captureBtn.disabled = true;
+        cancelRetake.style.display = 'none';
+    });
+
+    const attributeRows = document.getElementById('attributeRows');
+    document.getElementById('addAttributeRow').addEventListener('click', () => makeAttributeRow());
+
+    function makeAttributeRow(key = '', value = '') {
+        const row = document.createElement('div');
+        row.className = 'attribute-row';
+        row.innerHTML = `
+            <input type="text" name="Input.AttributeKeys" placeholder="Key" value="${key}" />
+            <input type="text" name="Input.AttributeValues" placeholder="Value" value="${value}" />
+            <button type="button" class="btn btn-light btn-small remove-row">✕</button>`;
+        row.querySelector('.remove-row').addEventListener('click', () => row.remove());
+        attributeRows.appendChild(row);
+        row.closest('details')?.setAttribute('open', '');
+    }
+
+    const existingKeys = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Input.AttributeKeys ?? new List<string>()));
+    const existingValues = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Input.AttributeValues ?? new List<string>()));
+    existingKeys.forEach((k, i) => makeAttributeRow(k, existingValues[i] ?? ''));
+
+    const extraImagesPreview = document.getElementById('extraImagesPreview');
+    const extraImageInputs = document.getElementById('extraImageInputs');
+
+    function addExtraImageDataUrl(dataUrl) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'extra-image-item';
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        wrapper.appendChild(img);
+        const x = document.createElement('div');
+        x.className = 'remove-x';
+        x.textContent = '✕';
+        wrapper.appendChild(x);
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'Input.NewExtraImageData';
+        hidden.value = dataUrl;
+        extraImageInputs.appendChild(hidden);
+        x.addEventListener('click', () => { wrapper.remove(); hidden.remove(); });
+        extraImagesPreview.appendChild(wrapper);
+        wrapper.closest('details')?.setAttribute('open', '');
+    }
+
+    document.getElementById('addExtraCam').addEventListener('click', async () => {
+        try {
+            const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            const v = document.createElement('video');
+            v.srcObject = s; v.autoplay = true; v.playsInline = true;
+            await new Promise(res => v.onloadedmetadata = res);
+            await new Promise(res => setTimeout(res, 400));
+            const c = document.createElement('canvas');
+            c.width = v.videoWidth; c.height = v.videoHeight;
+            c.getContext('2d').drawImage(v, 0, 0);
+            s.getTracks().forEach(t => t.stop());
+            addExtraImageDataUrl(c.toDataURL('image/jpeg', 0.92));
+        } catch (err) {
+            alert('Camera unavailable: ' + err.message);
+        }
+    });
+
+    document.getElementById('extraImageFile').addEventListener('change', (e) => {
+        [...e.target.files].forEach(file => {
+            const reader = new FileReader();
+            reader.onload = () => addExtraImageDataUrl(reader.result);
+            reader.readAsDataURL(file);
+        });
+        e.target.value = '';
+    });
+</script>
+}
