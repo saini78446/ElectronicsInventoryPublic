@@ -4,6 +4,8 @@ A self-hosted inventory tracker for electronics, built with ASP.NET Core 10, Raz
 and EF Core over SQLite. Originally ported from a PHP/SQLite app — it reads the same
 database and upload folder layout, so existing data carries over without migration.
 
+<img width="1484" height="956" alt="image" src="https://github.com/user-attachments/assets/a7a6d371-2cbe-48e1-afbb-620c74ce64c0" />
+
 ## Features
 
 - Item list with search and quick stats (total items, quantity, value)
@@ -13,6 +15,8 @@ database and upload folder layout, so existing data carries over without migrati
 - Master data management (Categories, Sellers, Conditions, Locations, Tags) with
   no cascading deletes — a row in use is protected until it's reassigned
 - Optional AI-assisted lookup via Groq and SerpApi to help fill in item details faster
+
+<img width="1176" height="950" alt="image" src="https://github.com/user-attachments/assets/adee7cee-3186-4979-8a68-39405e8fa8b5" />
 
 ## Requirements
 
