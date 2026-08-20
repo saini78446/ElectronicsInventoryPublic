@@ -16,6 +16,8 @@ database and upload folder layout, so existing data carries over without migrati
   no cascading deletes — a row in use is protected until it's reassigned
 - Optional AI-assisted lookup via Groq and SerpApi to help fill in item details faster
 
+<img width="1176" height="950" alt="image" src="https://github.com/user-attachments/assets/adee7cee-3186-4979-8a68-39405e8fa8b5" />
+
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
